@@ -1,34 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { GameHeader } from './components/GameHeader';
 import { GameBoard } from './components/GameBoard';
 import { ChatArea } from './components/ChatArea';
-import { GameState, Position, ChatMessage, Move } from './types/game';
-import { getInitialPieces } from './utils/pieceUtils';
-import { calculateValidMoves, isPieceConnectedToGroup } from './utils/pieceUtils';
-import { generateBoard, arePositionsEqual } from './utils/boardUtils';
+import { Move } from './types/game';
+import { useGameState } from './hooks/useGameState';
 import { useSocket } from './hooks/useSocket';
 import { useTimer } from './hooks/useTimer';
 
 function App() {
-  const [gameState, setGameState] = useState<GameState>({
-    pieces: getInitialPieces(),
-    currentPlayer: 'blue',
-    selectedPiece: null,
-    validMoves: [],
-    gameStatus: 'waiting',
-    winner: null,
-    blueTime: 360,
-    redTime: 360,
-    messages: [],
-  });
-
-  const handleTimeEnd = useCallback(() => {
-    setGameState(prev => ({
-      ...prev,
-      gameStatus: 'finished',
-      winner: prev.currentPlayer === 'blue' ? 'red' : 'blue'
-    }));
-  }, []);
+  const {
+    gameState,
+    handleTimeEnd,
+    handleGameStart,
+    handleOpponentMove,
+    handlePieceClick,
+    handleHexClick,
+    handleChatMessage,
+    handleGameEnd
+  } = useGameState();
 
   const blueTime = useTimer(
     gameState.blueTime,
@@ -42,42 +31,27 @@ function App() {
     handleTimeEnd
   );
 
-  useEffect(() => {
-    setGameState(prev => ({
-      ...prev,
-      blueTime,
-      redTime
-    }));
-  }, [blueTime, redTime]);
+  const { findGame, sendMove, sendChat, forfeit } = useSocket(
+    handleGameStart,
+    handleOpponentMove,
+    handleChatMessage,
+    () => handleGameEnd(gameState.playerColor!),
+    () => handleGameEnd(gameState.playerColor!)
+  );
 
-  const handleGameStart = ({ gameId, color }) => {
-    setGameState(prev => ({
-      ...prev,
-      gameStatus: 'playing',
-      gameId,
-      playerColor: color,
-      currentPlayer: 'blue' // La partie commence toujours avec le joueur bleu
-    }));
+  const handleHexClickWithMove = (position: Position) => {
+    handleHexClick(position, sendMove);
   };
 
-  const handleOpponentMove = (move: Move) => {
-    setGameState(prev => {
-      const newPieces = prev.pieces.map(p => {
-        if (p.id === move.pieceId) {
-          return { ...p, position: move.to };
-        }
-        return p;
-      }).filter(p => !arePositionsEqual(p.position, move.to) || p.id === move.pieceId);
-
-      return {
-        ...prev,
-        pieces: newPieces,
-        currentPlayer: prev.currentPlayer === 'blue' ? 'red' : 'blue'
-      };
-    });
+  const handleForfeit = () => {
+    if (!gameState.gameId) return;
+    forfeit(gameState.gameId);
+    handleGameEnd(gameState.currentPlayer === 'blue' ? 'red' : 'blue');
   };
 
-  // ... rest of the component implementation remains the same
+  React.useEffect(() => {
+    findGame();
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -93,13 +67,17 @@ function App() {
           <GameBoard
             gameState={gameState}
             onPieceClick={handlePieceClick}
-            onHexClick={handleHexClick}
+            onHexClick={handleHexClickWithMove}
             onForfeit={handleForfeit}
           />
           <ChatArea
             messages={gameState.messages}
             currentPlayer={gameState.playerColor || 'blue'}
-            onSendMessage={handleSendMessage}
+            onSendMessage={(message) => {
+              if (gameState.gameId) {
+                sendChat(gameState.gameId, message);
+              }
+            }}
           />
         </div>
       </div>

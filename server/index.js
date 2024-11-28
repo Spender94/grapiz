@@ -10,17 +10,15 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
-// Configuration CORS plus sécurisée
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Accepte toutes les origines en développement
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
   transports: ['websocket', 'polling']
 });
 
-// Servir les fichiers statiques en production
 app.use(express.static(join(__dirname, '../dist')));
 
 const games = new Map();
@@ -40,7 +38,7 @@ io.on('connection', (socket) => {
           blue: opponent,
           red: socket.id
         },
-        gameState: null
+        moves: []
       });
 
       io.to(opponent).emit('gameStart', { gameId, color: 'blue' });
@@ -54,6 +52,7 @@ io.on('connection', (socket) => {
   socket.on('move', ({ gameId, move }) => {
     const game = games.get(gameId);
     if (game) {
+      game.moves.push(move);
       const opponent = Object.values(game.players).find(id => id !== socket.id);
       if (opponent) {
         io.to(opponent).emit('opponentMove', move);
@@ -64,10 +63,16 @@ io.on('connection', (socket) => {
   socket.on('chat', ({ gameId, message }) => {
     const game = games.get(gameId);
     if (game) {
-      const opponent = Object.values(game.players).find(id => id !== socket.id);
-      if (opponent) {
-        io.to(opponent).emit('chatMessage', message);
-      }
+      // Get the player's color
+      const playerColor = Object.entries(game.players).find(([_, id]) => id === socket.id)?.[0] as 'blue' | 'red';
+      
+      // Broadcast the message to all players in the game, including the sender
+      Object.values(game.players).forEach(playerId => {
+        io.to(playerId).emit('chatMessage', {
+          message,
+          player: playerColor
+        });
+      });
     }
   });
 
@@ -96,7 +101,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Gérer toutes les autres routes en servant index.html
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '../dist/index.html'));
 });
