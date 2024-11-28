@@ -9,11 +9,19 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Configuration CORS plus sécurisée
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-  }
+    origin: "*", // Accepte toutes les origines en développement
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
 });
+
+// Servir les fichiers statiques en production
+app.use(express.static(join(__dirname, '../dist')));
 
 const games = new Map();
 const waitingPlayers = new Set();
@@ -86,6 +94,11 @@ io.on('connection', (socket) => {
       }
     }
   });
+});
+
+// Gérer toutes les autres routes en servant index.html
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '../dist/index.html'));
 });
 
 const PORT = process.env.PORT || 3001;

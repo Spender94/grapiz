@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Player, ChatMessage } from '../types/game';
 
 interface ChatAreaProps {
@@ -13,6 +13,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onSendMessage,
 }) => {
   const [newMessage, setNewMessage] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,23 +36,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       <div className="absolute inset-0 bg-gradient-to-b from-[#FCD07C] via-[#F5A21A] to-[#BA8C43]" />
       <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white/95 to-transparent z-10" />
       <div className="relative z-20 p-4 flex flex-col h-full">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Chat</h2>
-        <div className="flex-1 overflow-y-auto mb-4 space-y-2">
+        <div className="flex-1 overflow-y-auto mb-4 space-y-2 font-['Arial']">
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`p-2 rounded-lg max-w-[80%] ${
-                msg.player === currentPlayer
-                  ? 'ml-auto bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              <p className="text-sm">{msg.message}</p>
-              <span className="text-xs opacity-75">
-                {new Date(msg.timestamp).toLocaleTimeString()}
+            <div key={msg.id} className="text-gray-800">
+              <span className="font-semibold">
+                {msg.player === 'blue' ? 'Joueur Bleu' : 'Joueur Rouge'}
               </span>
+              {' > '}
+              {msg.message}
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
         <form onSubmit={handleSubmit} className="mt-auto">
           <input
