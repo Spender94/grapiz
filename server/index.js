@@ -11,16 +11,15 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
+// Serve static files first
+app.use(express.static(join(__dirname, '../dist')));
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling']
+    origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
 });
-
-app.use(express.static(join(__dirname, '../dist')));
 
 const games = new Map();
 const waitingPlayers = new Set();
@@ -33,7 +32,7 @@ io.on('connection', (socket) => {
       const opponent = waitingPlayers.values().next().value;
       waitingPlayers.delete(opponent);
       
-      const gameId = Math.random().toString(36).substring(7);
+      const gameId = uuidv4();
       games.set(gameId, {
         players: {
           blue: opponent,
@@ -64,15 +63,12 @@ io.on('connection', (socket) => {
   socket.on('chat', ({ gameId, message }) => {
     const game = games.get(gameId);
     if (game) {
-      const playerEntries = Object.entries(game.players);
-      const playerEntry = playerEntries.find(([_, id]) => id === socket.id);
-      const playerColor = playerEntry ? playerEntry[0] : null;
-
+      const playerColor = Object.entries(game.players).find(([_, id]) => id === socket.id)?.[0];
       if (playerColor) {
         const chatMessage = {
           id: uuidv4(),
-          message,
           player: playerColor,
+          message,
           timestamp: Date.now()
         };
         
@@ -109,6 +105,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// Handle all other routes by serving the index.html
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '../dist/index.html'));
 });

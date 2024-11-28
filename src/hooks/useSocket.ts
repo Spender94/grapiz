@@ -1,32 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { GameState, Move } from '../types/game';
+import { GameState, Move, ChatMessage } from '../types/game';
 
-// URL du serveur WebSocket basée sur l'environnement
 const SOCKET_URL = import.meta.env.PROD 
-  ? 'https://grapiz.onrender.com'  // URL de production
-  : 'http://localhost:3001';       // URL de développement
+  ? window.location.origin  // Use the same origin in production
+  : 'http://localhost:3001';
 
 export function useSocket(
   onGameStart: (data: { gameId: string, color: 'red' | 'blue' }) => void,
   onOpponentMove: (move: Move) => void,
-  onChatMessage: (message: string) => void,
+  onChatMessage: (message: ChatMessage) => void,
   onOpponentForfeit: () => void,
   onOpponentDisconnected: () => void
 ) {
   const socketRef = useRef<Socket>();
 
   useEffect(() => {
-    // Configuration du socket avec gestion des erreurs
     socketRef.current = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      secure: true
+      reconnectionDelay: 1000
     });
 
-    // Gestion des événements de connexion
     socketRef.current.on('connect', () => {
       console.log('Connected to server');
     });
@@ -35,7 +31,6 @@ export function useSocket(
       console.error('Connection error:', error);
     });
 
-    // Événements du jeu
     socketRef.current.on('gameStart', onGameStart);
     socketRef.current.on('opponentMove', onOpponentMove);
     socketRef.current.on('chatMessage', onChatMessage);

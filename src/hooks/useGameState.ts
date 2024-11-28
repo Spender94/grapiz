@@ -1,18 +1,67 @@
 import { useState, useCallback } from 'react';
 import { GameState, Position, ChatMessage, Move, Player } from '../types/game';
-import { getInitialPieces, checkVictoryCondition } from '../utils/pieceUtils';
-import { calculateValidMoves } from '../utils/pieceUtils';
-import { generateBoard, arePositionsEqual } from '../utils/boardUtils';
+import { getInitialPieces, checkVictoryCondition, calculateValidMoves } from '../utils/pieceUtils';
+import { arePositionsEqual, generateBoard } from '../utils/boardUtils';
 import { v4 as uuidv4 } from 'uuid';
 
+const INITIAL_TIME = 360; // 6 minutes in seconds
+
 export function useGameState() {
-  // ... [Previous state and handlers remain the same until handleHexClick]
+  const [gameState, setGameState] = useState<GameState>({
+    pieces: getInitialPieces(),
+    currentPlayer: 'blue',
+    selectedPiece: null,
+    validMoves: [],
+    gameStatus: 'waiting',
+    winner: null,
+    blueTime: INITIAL_TIME,
+    redTime: INITIAL_TIME,
+    messages: [],
+    gameId: undefined,
+    playerColor: undefined
+  });
+
+  const handleTimeEnd = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      gameStatus: 'finished',
+      winner: prev.currentPlayer === 'blue' ? 'red' : 'blue'
+    }));
+  }, []);
+
+  const handleGameStart = useCallback(({ gameId, color }: { gameId: string, color: Player }) => {
+    setGameState(prev => ({
+      ...prev,
+      gameId,
+      playerColor: color,
+      gameStatus: 'playing'
+    }));
+  }, []);
+
+  const handlePieceClick = useCallback((pieceId: string) => {
+    setGameState(prev => {
+      if (prev.gameStatus !== 'playing' || prev.currentPlayer !== prev.playerColor) {
+        return prev;
+      }
+
+      const piece = prev.pieces.find(p => p.id === pieceId);
+      if (!piece || piece.player !== prev.currentPlayer) {
+        return prev;
+      }
+
+      const validMoves = calculateValidMoves(piece, prev.pieces, generateBoard());
+
+      return {
+        ...prev,
+        selectedPiece: piece,
+        validMoves
+      };
+    });
+  }, []);
 
   const handleHexClick = useCallback((position: Position, sendMove: (gameId: string, move: Move) => void) => {
     setGameState(prev => {
-      if (!prev.selectedPiece || !prev.validMoves.some(move => 
-        arePositionsEqual(move, position)
-      )) {
+      if (!prev.selectedPiece || !prev.validMoves.some(move => arePositionsEqual(move, position))) {
         return prev;
       }
 
@@ -22,16 +71,15 @@ export function useGameState() {
         to: position
       };
 
+      if (prev.gameId) {
+        sendMove(prev.gameId, move);
+      }
+
       const newPieces = prev.pieces
         .filter(p => !arePositionsEqual(p.position, position))
         .map(p => p.id === prev.selectedPiece!.id ? { ...p, position } : p);
 
-      // Check victory condition after move
       const victoryResult = checkVictoryCondition(newPieces);
-
-      if (prev.gameId) {
-        sendMove(prev.gameId, move);
-      }
 
       return {
         ...prev,
@@ -45,14 +93,26 @@ export function useGameState() {
     });
   }, []);
 
-  // ... [Rest of the code remains the same]
+  const handleChatMessage = useCallback((message: ChatMessage) => {
+    setGameState(prev => ({
+      ...prev,
+      messages: [...prev.messages, message]
+    }));
+  }, []);
+
+  const handleGameEnd = useCallback((winner: Player) => {
+    setGameState(prev => ({
+      ...prev,
+      gameStatus: 'finished',
+      winner
+    }));
+  }, []);
 
   return {
     gameState,
-    setGameState,
     handleTimeEnd,
     handleGameStart,
-    handleOpponentMove,
+    handleOpponentMove: handleHexClick,
     handlePieceClick,
     handleHexClick,
     handleChatMessage,
