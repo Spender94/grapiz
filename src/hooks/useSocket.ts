@@ -4,7 +4,7 @@ import { GameState, Move } from '../types/game';
 
 // En production, nous utiliserons l'URL du serveur déployé
 const SOCKET_URL = import.meta.env.PROD 
-  ? 'https://grapiz-server.onrender.com'  // URL de production
+  ? 'https://grapiz.onrender.com'  // URL de production
   : 'http://localhost:3001';              // URL de développement
 
 export function useSocket(onGameStart: (data: { gameId: string, color: 'red' | 'blue' }) => void,
