@@ -151,29 +151,44 @@ function getPossibleMovesInLine(
   return moves;
 }
 
-export function isPieceConnectedToGroup(
-  piece: Piece,
-  pieces: Piece[]
-): boolean {
+export function checkVictoryCondition(pieces: Piece[]): Player | 'draw' | null {
+  const bluePieces = pieces.filter(p => p.player === 'blue');
+  const redPieces = pieces.filter(p => p.player === 'red');
+
+  const blueConnected = areAllPiecesConnected(bluePieces);
+  const redConnected = areAllPiecesConnected(redPieces);
+
+  if (blueConnected && redConnected) {
+    return 'draw';
+  } else if (blueConnected) {
+    return 'blue';
+  } else if (redConnected) {
+    return 'red';
+  }
+
+  return null;
+}
+
+function areAllPiecesConnected(playerPieces: Piece[]): boolean {
+  if (playerPieces.length === 0) return false;
+
   const visited = new Set<string>();
-  const toVisit = [piece];
+  const toVisit = [playerPieces[0]];
 
   while (toVisit.length > 0) {
     const current = toVisit.pop()!;
-    
     if (visited.has(current.id)) continue;
+    
     visited.add(current.id);
-
     const neighbors = getNeighbors(current.position);
-    const connectedPieces = pieces.filter(p => 
-      p.player === piece.player &&
+    
+    const connectedPieces = playerPieces.filter(p => 
+      !visited.has(p.id) && 
       neighbors.some(n => arePositionsEqual(n, p.position))
     );
 
     toVisit.push(...connectedPieces);
   }
 
-  return pieces
-    .filter(p => p.player === piece.player)
-    .every(p => visited.has(p.id));
+  return visited.size === playerPieces.length;
 }

@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
 import { GameState, Position, ChatMessage, Move, Player } from '../types/game';
-import { getInitialPieces } from '../utils/pieceUtils';
-import { calculateValidMoves } from '../utils/pieceUtils';
+import { getInitialPieces, calculateValidMoves, checkVictoryCondition } from '../utils/pieceUtils';
 import { generateBoard, arePositionsEqual } from '../utils/boardUtils';
-import { v4 as uuidv4 } from 'uuid';
+
+const INITIAL_TIME = 360; // 6 minutes in seconds
 
 export function useGameState() {
   const [gameState, setGameState] = useState<GameState>({
@@ -13,9 +13,11 @@ export function useGameState() {
     validMoves: [],
     gameStatus: 'waiting',
     winner: null,
-    blueTime: 360,
-    redTime: 360,
+    blueTime: INITIAL_TIME,
+    redTime: INITIAL_TIME,
     messages: [],
+    gameId: undefined,
+    playerColor: undefined
   });
 
   const handleTimeEnd = useCallback(() => {
@@ -27,47 +29,31 @@ export function useGameState() {
   }, []);
 
   const handleGameStart = useCallback(({ gameId, color }: { gameId: string, color: Player }) => {
+    console.log('Game starting with color:', color);
     setGameState(prev => ({
       ...prev,
-      gameStatus: 'playing',
       gameId,
       playerColor: color,
-      currentPlayer: 'blue',
-      pieces: getInitialPieces()
+      gameStatus: 'playing'
     }));
-  }, []);
-
-  const handleOpponentMove = useCallback((move: Move) => {
-    setGameState(prev => {
-      const movingPiece = prev.pieces.find(p => p.id === move.pieceId);
-      if (!movingPiece) return prev;
-
-      const newPieces = prev.pieces
-        .filter(p => !arePositionsEqual(p.position, move.to))
-        .map(p => p.id === move.pieceId ? { ...p, position: move.to } : p);
-
-      return {
-        ...prev,
-        pieces: newPieces,
-        currentPlayer: prev.currentPlayer === 'blue' ? 'red' : 'blue',
-        selectedPiece: null,
-        validMoves: []
-      };
-    });
   }, []);
 
   const handlePieceClick = useCallback((pieceId: string) => {
     setGameState(prev => {
       if (prev.gameStatus !== 'playing' || prev.currentPlayer !== prev.playerColor) {
+        console.log('Not player turn or game not playing');
         return prev;
       }
 
       const piece = prev.pieces.find(p => p.id === pieceId);
       if (!piece || piece.player !== prev.currentPlayer) {
+        console.log('Invalid piece selection');
         return prev;
       }
 
       const validMoves = calculateValidMoves(piece, prev.pieces, generateBoard());
+      console.log('Valid moves calculated:', validMoves);
+
       return {
         ...prev,
         selectedPiece: piece,
@@ -78,9 +64,8 @@ export function useGameState() {
 
   const handleHexClick = useCallback((position: Position, sendMove: (gameId: string, move: Move) => void) => {
     setGameState(prev => {
-      if (!prev.selectedPiece || !prev.validMoves.some(move => 
-        arePositionsEqual(move, position)
-      )) {
+      if (!prev.selectedPiece || !prev.validMoves.some(move => arePositionsEqual(move, position))) {
+        console.log('Invalid move attempt');
         return prev;
       }
 
@@ -90,11 +75,25 @@ export function useGameState() {
         to: position
       };
 
+      // Vérifier s'il y a une pièce à capturer
+      const capturedPiece = prev.pieces.find(p => 
+        arePositionsEqual(p.position, position) && 
+        p.player !== prev.selectedPiece!.player
+      );
+
+      // Mettre à jour les pièces
       const newPieces = prev.pieces
-        .filter(p => !arePositionsEqual(p.position, position))
-        .map(p => p.id === prev.selectedPiece!.id ? { ...p, position } : p);
+        .filter(p => !capturedPiece || p.id !== capturedPiece.id)
+        .map(p => 
+          p.id === prev.selectedPiece!.id 
+            ? { ...p, position }
+            : p
+        );
+
+      const victoryResult = checkVictoryCondition(newPieces);
 
       if (prev.gameId) {
+        console.log('Sending move:', move);
         sendMove(prev.gameId, move);
       }
 
@@ -103,23 +102,49 @@ export function useGameState() {
         pieces: newPieces,
         currentPlayer: prev.currentPlayer === 'blue' ? 'red' : 'blue',
         selectedPiece: null,
-        validMoves: []
+        validMoves: [],
+        gameStatus: victoryResult ? 'finished' : prev.gameStatus,
+        winner: victoryResult === 'draw' ? null : victoryResult
       };
     });
   }, []);
 
-  const handleChatMessage = useCallback(({ message, player }: { message: string, player: Player }) => {
+  const handleOpponentMove = useCallback((move: Move) => {
+    console.log('Handling opponent move:', move);
+    setGameState(prev => {
+      // Vérifier s'il y a une pièce à capturer
+      const capturedPiece = prev.pieces.find(p => 
+        arePositionsEqual(p.position, move.to) && 
+        p.player !== prev.currentPlayer
+      );
+
+      // Mettre à jour les pièces
+      const newPieces = prev.pieces
+        .filter(p => !capturedPiece || p.id !== capturedPiece.id)
+        .map(p => 
+          p.id === move.pieceId 
+            ? { ...p, position: move.to }
+            : p
+        );
+
+      const victoryResult = checkVictoryCondition(newPieces);
+
+      return {
+        ...prev,
+        pieces: newPieces,
+        currentPlayer: prev.currentPlayer === 'blue' ? 'red' : 'blue',
+        selectedPiece: null,
+        validMoves: [],
+        gameStatus: victoryResult ? 'finished' : prev.gameStatus,
+        winner: victoryResult === 'draw' ? null : victoryResult
+      };
+    });
+  }, []);
+
+  const handleChatMessage = useCallback((message: ChatMessage) => {
     setGameState(prev => ({
       ...prev,
-      messages: [
-        ...prev.messages,
-        {
-          id: uuidv4(),
-          player,
-          message,
-          timestamp: Date.now()
-        }
-      ]
+      messages: [...prev.messages, message]
     }));
   }, []);
 
@@ -133,7 +158,6 @@ export function useGameState() {
 
   return {
     gameState,
-    setGameState,
     handleTimeEnd,
     handleGameStart,
     handleOpponentMove,

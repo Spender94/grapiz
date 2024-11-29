@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,16 +11,15 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
+// Serve static files first
+app.use(express.static(join(__dirname, '../dist')));
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling']
+    origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
 });
-
-app.use(express.static(join(__dirname, '../dist')));
 
 const games = new Map();
 const waitingPlayers = new Set();
@@ -32,7 +32,7 @@ io.on('connection', (socket) => {
       const opponent = waitingPlayers.values().next().value;
       waitingPlayers.delete(opponent);
       
-      const gameId = Math.random().toString(36).substring(7);
+      const gameId = uuidv4();
       games.set(gameId, {
         players: {
           blue: opponent,
@@ -63,16 +63,20 @@ io.on('connection', (socket) => {
   socket.on('chat', ({ gameId, message }) => {
     const game = games.get(gameId);
     if (game) {
-      // Get the player's color
-      const playerColor = Object.entries(game.players).find(([_, id]) => id === socket.id)?.[0] as 'blue' | 'red';
-      
-      // Broadcast the message to all players in the game, including the sender
-      Object.values(game.players).forEach(playerId => {
-        io.to(playerId).emit('chatMessage', {
+      const playerColor = Object.entries(game.players).find(([_, id]) => id === socket.id)?.[0];
+      if (playerColor) {
+        const chatMessage = {
+          id: uuidv4(),
+          player: playerColor,
           message,
-          player: playerColor
+          timestamp: Date.now()
+        };
+        
+        // Send to both players
+        Object.values(game.players).forEach(playerId => {
+          io.to(playerId).emit('chatMessage', chatMessage);
         });
-      });
+      }
     }
   });
 
@@ -101,6 +105,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// Handle all other routes by serving the index.html
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '../dist/index.html'));
 });

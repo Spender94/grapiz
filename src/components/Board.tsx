@@ -15,7 +15,7 @@ export const Board: React.FC<BoardProps> = ({
   onPieceClick,
   onHexClick,
 }) => {
-  const CELL_SIZE = 40; // Increased from 30
+  const CELL_SIZE = 48; // Increased from 40
   const board = generateBoard();
   const width = CELL_SIZE * 20;
   const height = CELL_SIZE * 20;
@@ -51,14 +51,14 @@ export const Board: React.FC<BoardProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-center w-full h-full">
+    <div className="flex items-start justify-center w-full">
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         className="max-w-full max-h-full"
       >
-        <g transform={`translate(${centerX}, ${centerY})`}>
+        <g transform={`translate(${centerX}, ${centerY - height * 0.15})`}>
           {board.map((pos) => (
             <Hexagon
               key={`hex-${pos.x}-${pos.y}`}

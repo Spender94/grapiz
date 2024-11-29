@@ -1,23 +1,55 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GameHeader } from './components/GameHeader';
 import { GameBoard } from './components/GameBoard';
 import { ChatArea } from './components/ChatArea';
-import { Move } from './types/game';
+import { GameControls } from './components/GameControls';
+import { GameStatus } from './components/GameStatus';
+import { Position } from './types/game';
 import { useGameState } from './hooks/useGameState';
 import { useSocket } from './hooks/useSocket';
 import { useTimer } from './hooks/useTimer';
+import { useLocalGame } from './hooks/useLocalGame';
+import { GameMode, GAME_MODES, DEFAULT_GAME_MODE } from './config/gameConfig';
 
 function App() {
+  const [gameMode, setGameMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  
   const {
-    gameState,
-    handleTimeEnd,
+    gameState: onlineGameState,
+    handleTimeEnd: handleOnlineTimeEnd,
     handleGameStart,
     handleOpponentMove,
-    handlePieceClick,
-    handleHexClick,
+    handlePieceClick: handleOnlinePieceClick,
+    handleHexClick: handleOnlineHexClick,
     handleChatMessage,
     handleGameEnd
   } = useGameState();
+
+  const {
+    gameState: localGameState,
+    handlePieceClick: handleLocalPieceClick,
+    handleHexClick: handleLocalHexClick,
+    handleChat: handleLocalChat,
+    forfeit: handleLocalForfeit
+  } = useLocalGame();
+
+  const { findGame, sendMove, sendChat, forfeit } = useSocket(
+    handleGameStart,
+    handleOpponentMove,
+    handleChatMessage,
+    () => handleGameEnd(onlineGameState.playerColor!),
+    () => handleGameEnd(onlineGameState.playerColor!)
+  );
+
+  const gameState = gameMode === GAME_MODES.ONLINE ? onlineGameState : localGameState;
+
+  const handleTimeEnd = () => {
+    if (gameMode === GAME_MODES.ONLINE) {
+      handleOnlineTimeEnd();
+    } else {
+      handleLocalForfeit();
+    }
+  };
 
   const blueTime = useTimer(
     gameState.blueTime,
@@ -31,31 +63,56 @@ function App() {
     handleTimeEnd
   );
 
-  const { findGame, sendMove, sendChat, forfeit } = useSocket(
-    handleGameStart,
-    handleOpponentMove,
-    handleChatMessage,
-    () => handleGameEnd(gameState.playerColor!),
-    () => handleGameEnd(gameState.playerColor!)
-  );
+  const handlePieceClick = (pieceId: string) => {
+    if (gameMode === GAME_MODES.ONLINE) {
+      handleOnlinePieceClick(pieceId);
+    } else {
+      handleLocalPieceClick(pieceId);
+    }
+  };
 
-  const handleHexClickWithMove = (position: Position) => {
-    handleHexClick(position, sendMove);
+  const handleHexClick = (position: Position) => {
+    if (gameMode === GAME_MODES.ONLINE) {
+      handleOnlineHexClick(position, sendMove);
+    } else {
+      handleLocalHexClick(position);
+    }
+  };
+
+  const handleChatSubmit = (message: string) => {
+    if (gameMode === GAME_MODES.ONLINE) {
+      if (gameState.gameId) {
+        sendChat(gameState.gameId, message);
+      }
+    } else {
+      handleLocalChat(message);
+    }
   };
 
   const handleForfeit = () => {
-    if (!gameState.gameId) return;
-    forfeit(gameState.gameId);
-    handleGameEnd(gameState.currentPlayer === 'blue' ? 'red' : 'blue');
+    if (gameMode === GAME_MODES.ONLINE) {
+      if (gameState.gameId) {
+        forfeit(gameState.gameId);
+      }
+    } else {
+      handleLocalForfeit();
+    }
   };
 
-  React.useEffect(() => {
-    findGame();
-  }, []);
+  const showGameStatus = gameMode === GAME_MODES.ONLINE && 
+    (gameState.gameStatus === 'waiting' || 
+     (gameState.gameStatus === 'playing' && !gameState.playerColor) ||
+     gameState.gameStatus === 'finished' ||
+     gameState.gameStatus === 'draw');
 
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-6">
+        <GameControls
+          gameMode={gameMode}
+          onGameModeChange={setGameMode}
+        />
+        
         <GameHeader 
           gameState={{
             ...gameState,
@@ -63,23 +120,28 @@ function App() {
             redTime
           }} 
         />
+        
         <div className="flex flex-col md:flex-row gap-4">
           <GameBoard
             gameState={gameState}
             onPieceClick={handlePieceClick}
-            onHexClick={handleHexClickWithMove}
+            onHexClick={handleHexClick}
             onForfeit={handleForfeit}
           />
           <ChatArea
             messages={gameState.messages}
-            currentPlayer={gameState.playerColor || 'blue'}
-            onSendMessage={(message) => {
-              if (gameState.gameId) {
-                sendChat(gameState.gameId, message);
-              }
-            }}
+            currentPlayer={gameState.currentPlayer}
+            onSendMessage={handleChatSubmit}
           />
         </div>
+
+        {showGameStatus && (
+          <GameStatus
+            gameStatus={gameState.gameStatus}
+            winner={gameState.winner}
+            onFindGame={findGame}
+          />
+        )}
       </div>
     </div>
   );
