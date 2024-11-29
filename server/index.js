@@ -19,8 +19,7 @@ const io = new Server(httpServer, {
     origin: process.env.NODE_ENV === 'production' ? false : ["http://localhost:5173"],
     methods: ["GET", "POST"],
     credentials: true
-  },
-  transports: ['polling', 'websocket']
+  }
 });
 
 const games = new Map();
@@ -30,6 +29,11 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('findGame', () => {
+    console.log('Player searching for game:', socket.id);
+    
+    // Si le joueur était déjà en attente, on le retire
+    waitingPlayers.delete(socket.id);
+    
     if (waitingPlayers.size > 0) {
       const opponent = waitingPlayers.values().next().value;
       waitingPlayers.delete(opponent);
@@ -43,9 +47,12 @@ io.on('connection', (socket) => {
         moves: []
       });
 
+      console.log(`Game ${gameId} created between ${opponent} (blue) and ${socket.id} (red)`);
+
       io.to(opponent).emit('gameStart', { gameId, color: 'blue' });
       socket.emit('gameStart', { gameId, color: 'red' });
     } else {
+      console.log('Player added to waiting list:', socket.id);
       waitingPlayers.add(socket.id);
       socket.emit('waiting');
     }
@@ -74,7 +81,6 @@ io.on('connection', (socket) => {
           timestamp: Date.now()
         };
         
-        // Send to both players
         Object.values(game.players).forEach(playerId => {
           io.to(playerId).emit('chatMessage', chatMessage);
         });
@@ -94,7 +100,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
     waitingPlayers.delete(socket.id);
+    
     for (const [gameId, game] of games.entries()) {
       if (Object.values(game.players).includes(socket.id)) {
         const opponent = Object.values(game.players).find(id => id !== socket.id);

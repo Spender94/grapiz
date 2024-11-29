@@ -10,7 +10,5 @@ export const socketConfig: Partial<SocketOptions> = {
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   timeout: 10000,
-  autoConnect: false,
-  forceNew: true,
-  withCredentials: true
+  autoConnect: true
 };

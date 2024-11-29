@@ -112,12 +112,6 @@ function App() {
     findGame();
   };
 
-  useEffect(() => {
-    if (gameMode === GAME_MODES.LOCAL) {
-      setIsWaitingForOpponent(false);
-    }
-  }, [gameMode]);
-
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-6">

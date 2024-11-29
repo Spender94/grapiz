@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { GameMode, GAME_MODES } from '../config/gameConfig';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 
 interface GameControlsProps {
   gameMode: GameMode;
@@ -15,45 +15,29 @@ export const GameControls: React.FC<GameControlsProps> = ({
   isWaitingForOpponent = false,
   onFindGame
 }) => {
-  const [hasClickedFind, setHasClickedFind] = useState(false);
+  if (gameMode === GAME_MODES.ONLINE && isWaitingForOpponent) {
+    return (
+      <div className="flex items-center gap-3 mb-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span>En attente d'un adversaire...</span>
+      </div>
+    );
+  }
 
-  const handleModeChange = (newMode: GameMode) => {
-    setHasClickedFind(false);
-    onGameModeChange(newMode);
-  };
-
-  const handleFindGame = () => {
-    setHasClickedFind(true);
-    onFindGame?.();
-  };
-
-  return (
-    <div className="flex items-center gap-4 mb-4">
-      <select
-        value={gameMode}
-        onChange={(e) => handleModeChange(e.target.value as GameMode)}
-        className="px-4 py-2 rounded-lg bg-white border border-gray-300"
-        disabled={isWaitingForOpponent}
+  if (gameMode === GAME_MODES.LOCAL) {
+    return (
+      <button
+        onClick={() => {
+          onGameModeChange(GAME_MODES.ONLINE);
+          onFindGame?.();
+        }}
+        className="flex items-center gap-2 mb-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
       >
-        <option value={GAME_MODES.LOCAL}>Mode Local</option>
-        <option value={GAME_MODES.ONLINE}>Mode Online</option>
-      </select>
-      
-      {gameMode === GAME_MODES.ONLINE && !hasClickedFind && (
-        <button
-          onClick={handleFindGame}
-          className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-        >
-          Trouver un adversaire
-        </button>
-      )}
+        <Users className="w-5 h-5" />
+        <span>Trouver un adversaire</span>
+      </button>
+    );
+  }
 
-      {isWaitingForOpponent && (
-        <div className="flex items-center gap-2 text-indigo-600">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>En attente d'un adversaire...</span>
-        </div>
-      )}
-    </div>
-  );
+  return null;
 }
