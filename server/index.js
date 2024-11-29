@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -64,23 +63,16 @@ io.on('connection', (socket) => {
   socket.on('chat', ({ gameId, message }) => {
     const game = games.get(gameId);
     if (game) {
-      const playerEntries = Object.entries(game.players);
-      const playerEntry = playerEntries.find(([_, id]) => id === socket.id);
-      const playerColor = playerEntry ? playerEntry[0] : null;
-
-      if (playerColor) {
-        const chatMessage = {
-          id: uuidv4(),
+      // Get the player's color
+      const playerColor = Object.entries(game.players).find(([_, id]) => id === socket.id)?.[0] as 'blue' | 'red';
+      
+      // Broadcast the message to all players in the game, including the sender
+      Object.values(game.players).forEach(playerId => {
+        io.to(playerId).emit('chatMessage', {
           message,
-          player: playerColor,
-          timestamp: Date.now()
-        };
-        
-        // Send to both players
-        Object.values(game.players).forEach(playerId => {
-          io.to(playerId).emit('chatMessage', chatMessage);
+          player: playerColor
         });
-      }
+      });
     }
   });
 
