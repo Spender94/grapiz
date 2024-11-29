@@ -11,30 +11,46 @@ export function useSocket(
   onOpponentDisconnected: () => void
 ) {
   const socketRef = useRef<Socket>();
-  const gameIdRef = useRef<string>();
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
   const initSocket = useCallback(() => {
     if (socketRef.current?.connected) return;
 
-    socketRef.current = io(SOCKET_URL, socketConfig);
+    socketRef.current = io(SOCKET_URL, {
+      ...socketConfig,
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      rememberUpgrade: true
+    });
+    
     const socket = socketRef.current;
 
     socket.on('connect', () => {
       console.log('Connected to server');
-      // Automatically search for a game when connected
+      reconnectAttempts.current = 0;
       socket.emit('findGame');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      if (reconnectAttempts.current < maxReconnectAttempts) {
+        reconnectAttempts.current++;
+        setTimeout(() => {
+          socket.connect();
+        }, 1000 * Math.min(reconnectAttempts.current, 5));
+      }
     });
 
     socket.on('disconnect', (reason) => {
       console.log('Disconnected:', reason);
-      if (reason === 'io server disconnect') {
+      if (reason === 'io server disconnect' || reason === 'transport close') {
         socket.connect();
       }
     });
 
     socket.on('gameStart', (data) => {
       console.log('Game started:', data);
-      gameIdRef.current = data.gameId;
       onGameStart(data);
     });
 
@@ -70,7 +86,6 @@ export function useSocket(
 
     return () => {
       if (socketRef.current) {
-        console.log('Cleaning up socket connection');
         socketRef.current.disconnect();
         socketRef.current = undefined;
       }
@@ -81,9 +96,10 @@ export function useSocket(
     if (!socketRef.current?.connected) {
       console.log('Socket not connected, reconnecting...');
       initSocket();
+    } else {
+      console.log('Finding game...');
+      socketRef.current.emit('findGame');
     }
-    console.log('Finding game...');
-    socketRef.current?.emit('findGame');
   }, [initSocket]);
 
   const sendMove = useCallback((gameId: string, move: Move) => {
@@ -91,7 +107,6 @@ export function useSocket(
       console.warn('Cannot send move: socket not connected');
       return;
     }
-    console.log('Sending move:', move);
     socketRef.current.emit('move', { gameId, move });
   }, []);
 
@@ -100,7 +115,6 @@ export function useSocket(
       console.warn('Cannot send chat: socket not connected');
       return;
     }
-    console.log('Sending chat message:', message);
     socketRef.current.emit('chat', { gameId, message });
   }, []);
 
@@ -109,7 +123,6 @@ export function useSocket(
       console.warn('Cannot forfeit: socket not connected');
       return;
     }
-    console.log('Forfeiting game');
     socketRef.current.emit('forfeit', { gameId });
   }, []);
 

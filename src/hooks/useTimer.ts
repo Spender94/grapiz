@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Player } from '../types/game';
+import { useState, useEffect, useCallback } from 'react';
 
 export function useTimer(
   initialTime: number,
@@ -8,14 +7,18 @@ export function useTimer(
 ) {
   const [time, setTime] = useState(initialTime);
 
+  const resetTimer = useCallback(() => {
+    setTime(initialTime);
+  }, [initialTime]);
+
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout;
 
     if (isActive && time > 0) {
-      interval = setInterval(() => {
+      intervalId = setInterval(() => {
         setTime((prevTime) => {
           if (prevTime <= 1) {
-            clearInterval(interval);
+            clearInterval(intervalId);
             onTimeEnd();
             return 0;
           }
@@ -25,11 +28,15 @@ export function useTimer(
     }
 
     return () => {
-      if (interval) {
-        clearInterval(interval);
+      if (intervalId) {
+        clearInterval(intervalId);
       }
     };
   }, [isActive, time, onTimeEnd]);
+
+  useEffect(() => {
+    resetTimer();
+  }, [initialTime, resetTimer]);
 
   return time;
 }
