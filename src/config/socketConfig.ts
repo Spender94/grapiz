@@ -5,10 +5,13 @@ export const SOCKET_URL = import.meta.env.PROD
   : 'http://localhost:3001';
 
 export const socketConfig: Partial<SocketOptions> = {
-  transports: ['polling', 'websocket'],
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
-  timeout: 10000,
-  autoConnect: true
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  autoConnect: false,
+  forceNew: true,
+  withCredentials: true,
+  path: '/socket.io/'
 };

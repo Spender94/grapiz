@@ -1,15 +1,19 @@
-import { useCallback, useState } from 'react';
-import { GameState, Move, Player, ChatMessage, Position } from '../types/game';
+import { useCallback, useState, useEffect, useRef } from 'react';
+import { GameState, Position, ChatMessage, GameMode, AILevel } from '../types/game';
 import { getInitialPieces, calculateValidMoves, checkVictoryCondition } from '../utils/pieceUtils';
 import { generateBoard, arePositionsEqual } from '../utils/boardUtils';
 import { v4 as uuidv4 } from 'uuid';
+import { useAI } from './useAI';
 
 const INITIAL_TIME = 360; // 6 minutes
 
-export function useLocalGame() {
-  const [gameState, setGameState] = useState<GameState>({
+const createInitialState = (gameMode: GameMode = 'self', aiLevel: AILevel = null): GameState => {
+  // Pour les modes AI, choisir aléatoirement le premier joueur
+  const firstPlayer = gameMode === 'ai' ? (Math.random() < 0.5 ? 'blue' : 'red') : 'blue';
+  
+  return {
     pieces: getInitialPieces(),
-    currentPlayer: 'blue',
+    currentPlayer: firstPlayer,
     selectedPiece: null,
     validMoves: [],
     gameStatus: 'playing',
@@ -18,12 +22,159 @@ export function useLocalGame() {
     redTime: INITIAL_TIME,
     messages: [],
     gameId: 'local-game',
-    playerColor: undefined
-  });
+    gameMode,
+    aiLevel,
+    isThinking: false
+  };
+};
+
+export function useLocalGame() {
+  const [gameState, setGameState] = useState<GameState>(() => createInitialState());
+  const { calculateAIMove } = useAI();
+  const aiMoveInProgress = useRef(false);
+  const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset game state when changing modes
+  const resetGame = useCallback((mode: GameMode, aiLevel: AILevel = null) => {
+    // Nettoyer tous les timers existants
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    aiMoveInProgress.current = false;
+
+    // Créer un nouveau state complètement frais
+    setGameState(createInitialState(mode, aiLevel));
+  }, []);
+
+  // Timer effect
+  useEffect(() => {
+    // Nettoyer l'intervalle existant
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    
+    if (gameState.gameStatus === 'playing' && !gameState.isThinking) {
+      timerIntervalRef.current = setInterval(() => {
+        setGameState(prev => {
+          const timeKey = prev.currentPlayer === 'blue' ? 'blueTime' : 'redTime';
+          const newTime = prev[timeKey] - 1;
+          
+          if (newTime <= 0) {
+            // Nettoyer l'intervalle si le temps est écoulé
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+            }
+            
+            return {
+              ...prev,
+              gameStatus: 'finished',
+              winner: prev.currentPlayer === 'blue' ? 'red' : 'blue'
+            };
+          }
+          
+          return {
+            ...prev,
+            [timeKey]: newTime
+          };
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [gameState.gameStatus, gameState.isThinking]);
+
+  // AI move effect
+  useEffect(() => {
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
+
+    const shouldMakeAIMove = 
+      gameState.gameMode === 'ai' && 
+      gameState.gameStatus === 'playing' && 
+      gameState.currentPlayer === 'red' && 
+      !aiMoveInProgress.current;
+
+    if (!shouldMakeAIMove) return;
+
+    const makeAIMove = async () => {
+      if (aiMoveInProgress.current) return;
+      
+      aiMoveInProgress.current = true;
+      setGameState(prev => ({ ...prev, isThinking: true }));
+
+      try {
+        const aiMove = await calculateAIMove(gameState.pieces, gameState.aiLevel);
+        
+        if (aiMove && gameState.currentPlayer === 'red') {
+          setGameState(prev => {
+            const piece = prev.pieces.find(p => p.id === aiMove.pieceId);
+            if (!piece) return prev;
+
+            const validMoves = calculateValidMoves(piece, prev.pieces, generateBoard());
+            if (!validMoves.some(move => arePositionsEqual(move, aiMove.position))) {
+              return { ...prev, isThinking: false };
+            }
+
+            const capturedPiece = prev.pieces.find(p => 
+              arePositionsEqual(p.position, aiMove.position) && 
+              p.player !== piece.player
+            );
+
+            const newPieces = prev.pieces
+              .filter(p => !capturedPiece || p.id !== capturedPiece.id)
+              .map(p => p.id === piece.id ? { ...p, position: aiMove.position } : p);
+
+            const victoryResult = checkVictoryCondition(newPieces);
+
+            return {
+              ...prev,
+              pieces: newPieces,
+              currentPlayer: 'blue',
+              selectedPiece: null,
+              validMoves: [],
+              gameStatus: victoryResult ? 'finished' : 'playing',
+              winner: victoryResult === 'draw' ? null : victoryResult,
+              isThinking: false
+            };
+          });
+        }
+      } catch (error) {
+        console.error('AI move error:', error);
+        setGameState(prev => ({ ...prev, isThinking: false }));
+      } finally {
+        aiMoveInProgress.current = false;
+      }
+    };
+
+    aiTimeoutRef.current = setTimeout(makeAIMove, 500);
+
+    return () => {
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
+      }
+    };
+  }, [gameState.gameMode, gameState.gameStatus, gameState.currentPlayer, gameState.pieces, gameState.aiLevel, calculateAIMove]);
 
   const handlePieceClick = useCallback((pieceId: string) => {
     setGameState(prev => {
-      if (prev.gameStatus === 'finished') {
+      if (prev.gameStatus === 'finished' || prev.isThinking) {
         return prev;
       }
 
@@ -32,8 +183,11 @@ export function useLocalGame() {
         return prev;
       }
 
+      if (prev.gameMode === 'ai' && piece.player === 'red') {
+        return prev;
+      }
+
       const validMoves = calculateValidMoves(piece, prev.pieces, generateBoard());
-      console.log('Valid moves:', validMoves);
 
       return {
         ...prev,
@@ -49,15 +203,15 @@ export function useLocalGame() {
         return prev;
       }
 
-      // Vérifier s'il y a une pièce à capturer à la position cible
+      if (prev.gameMode === 'ai' && prev.currentPlayer === 'red') {
+        return prev;
+      }
+
       const capturedPiece = prev.pieces.find(p => 
         arePositionsEqual(p.position, position) && 
         p.player !== prev.selectedPiece!.player
       );
 
-      // Créer le nouveau tableau de pièces en:
-      // 1. Excluant la pièce capturée si elle existe
-      // 2. Mettant à jour la position de la pièce qui se déplace
       const newPieces = prev.pieces
         .filter(p => !capturedPiece || p.id !== capturedPiece.id)
         .map(p => 
@@ -66,10 +220,7 @@ export function useLocalGame() {
             : p
         );
 
-      // Vérifier les conditions de victoire
       const victoryResult = checkVictoryCondition(newPieces);
-      const newGameStatus = victoryResult ? 'finished' : 'playing';
-      const newWinner = victoryResult === 'draw' ? null : victoryResult;
 
       return {
         ...prev,
@@ -77,8 +228,8 @@ export function useLocalGame() {
         currentPlayer: prev.currentPlayer === 'blue' ? 'red' : 'blue',
         selectedPiece: null,
         validMoves: [],
-        gameStatus: newGameStatus,
-        winner: newWinner
+        gameStatus: victoryResult ? 'finished' : 'playing',
+        winner: victoryResult === 'draw' ? null : victoryResult
       };
     });
   }, []);
@@ -105,11 +256,28 @@ export function useLocalGame() {
     }));
   }, []);
 
+  const setGameMode = useCallback((mode: GameMode, aiLevel: AILevel = null) => {
+    resetGame(mode, aiLevel);
+  }, [resetGame]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
     gameState,
     handlePieceClick,
     handleHexClick,
     handleChat,
-    forfeit
+    forfeit,
+    setGameMode
   };
 }

@@ -1,5 +1,8 @@
+import { Position } from './position';
+
 export type Player = 'blue' | 'red';
-export type Position = { x: number; y: number };
+export type AILevel = 'noob' | 'gaspard' | null;
+export type GameMode = 'self' | 'ai';
 
 export interface Move {
   pieceId: string;
@@ -32,4 +35,7 @@ export interface GameState {
   messages: ChatMessage[];
   gameId?: string;
   playerColor?: Player;
+  gameMode: GameMode;
+  aiLevel: AILevel;
+  isThinking: boolean;
 }

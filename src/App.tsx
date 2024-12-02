@@ -1,125 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { GameHeader } from './components/GameHeader';
 import { GameBoard } from './components/GameBoard';
 import { ChatArea } from './components/ChatArea';
 import { GameControls } from './components/GameControls';
-import { Position } from './types/game';
-import { useGameState } from './hooks/useGameState';
-import { useSocket } from './hooks/useSocket';
-import { useTimer } from './hooks/useTimer';
 import { useLocalGame } from './hooks/useLocalGame';
-import { GameMode, GAME_MODES, DEFAULT_GAME_MODE } from './config/gameConfig';
+import { useTimer } from './hooks/useTimer';
 
 function App() {
-  const [gameMode, setGameMode] = useState<GameMode>(DEFAULT_GAME_MODE);
-  const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
-  
   const {
-    gameState: onlineGameState,
-    handleTimeEnd: handleOnlineTimeEnd,
-    handleGameStart,
-    handleOpponentMove,
-    handlePieceClick: handleOnlinePieceClick,
-    handleHexClick: handleOnlineHexClick,
-    handleChatMessage,
-    handleGameEnd
-  } = useGameState();
-
-  const {
-    gameState: localGameState,
-    handlePieceClick: handleLocalPieceClick,
-    handleHexClick: handleLocalHexClick,
-    handleChat: handleLocalChat,
-    forfeit: handleLocalForfeit
+    gameState,
+    handlePieceClick,
+    handleHexClick,
+    handleChat,
+    forfeit,
+    setGameMode
   } = useLocalGame();
-
-  const { findGame, sendMove, sendChat, forfeit, connected } = useSocket(
-    (data) => {
-      setIsWaitingForOpponent(false);
-      handleGameStart(data);
-    },
-    handleOpponentMove,
-    handleChatMessage,
-    () => handleGameEnd(onlineGameState.playerColor!),
-    () => handleGameEnd(onlineGameState.playerColor!)
-  );
-
-  const gameState = gameMode === GAME_MODES.ONLINE ? onlineGameState : localGameState;
-
-  const handleTimeEnd = () => {
-    if (gameMode === GAME_MODES.ONLINE) {
-      handleOnlineTimeEnd();
-    } else {
-      handleLocalForfeit();
-    }
-  };
 
   const blueTime = useTimer(
     gameState.blueTime,
     gameState.gameStatus === 'playing' && gameState.currentPlayer === 'blue',
-    handleTimeEnd
+    forfeit
   );
 
   const redTime = useTimer(
     gameState.redTime,
     gameState.gameStatus === 'playing' && gameState.currentPlayer === 'red',
-    handleTimeEnd
+    forfeit
   );
-
-  const handleGameModeChange = (newMode: GameMode) => {
-    setGameMode(newMode);
-    setIsWaitingForOpponent(false);
-  };
-
-  const handlePieceClick = (pieceId: string) => {
-    if (gameMode === GAME_MODES.ONLINE) {
-      handleOnlinePieceClick(pieceId);
-    } else {
-      handleLocalPieceClick(pieceId);
-    }
-  };
-
-  const handleHexClick = (position: Position) => {
-    if (gameMode === GAME_MODES.ONLINE) {
-      handleOnlineHexClick(position, sendMove);
-    } else {
-      handleLocalHexClick(position);
-    }
-  };
-
-  const handleChatSubmit = (message: string) => {
-    if (gameMode === GAME_MODES.ONLINE) {
-      if (gameState.gameId) {
-        sendChat(gameState.gameId, message);
-      }
-    } else {
-      handleLocalChat(message);
-    }
-  };
-
-  const handleForfeit = () => {
-    if (gameMode === GAME_MODES.ONLINE) {
-      if (gameState.gameId) {
-        forfeit(gameState.gameId);
-      }
-    } else {
-      handleLocalForfeit();
-    }
-  };
-
-  const handleFindGame = () => {
-    setIsWaitingForOpponent(true);
-    findGame();
-  };
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-2 md:px-4 py-4 md:py-6">
         <GameControls
-          gameMode={gameMode}
-          onGameModeChange={handleGameModeChange}
-          isWaitingForOpponent={isWaitingForOpponent}
-          onFindGame={handleFindGame}
+          gameMode={gameState.gameMode}
+          aiLevel={gameState.aiLevel}
+          onGameModeChange={setGameMode}
         />
         
         <GameHeader 
@@ -135,12 +50,12 @@ function App() {
             gameState={gameState}
             onPieceClick={handlePieceClick}
             onHexClick={handleHexClick}
-            onForfeit={handleForfeit}
+            onForfeit={forfeit}
           />
           <ChatArea
             messages={gameState.messages}
             currentPlayer={gameState.currentPlayer}
-            onSendMessage={handleChatSubmit}
+            onSendMessage={handleChat}
           />
         </div>
       </div>

@@ -16,10 +16,16 @@ app.use(express.static(join(__dirname, '../dist')));
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : ["http://localhost:5173"],
+    origin: process.env.NODE_ENV === 'production' 
+      ? ["https://cosmic-bubblegum-4be6f9.netlify.app"]
+      : ["http://localhost:5173"],
     methods: ["GET", "POST"],
     credentials: true
-  }
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['polling', 'websocket'],
+  path: '/socket.io/'
 });
 
 const games = new Map();
@@ -31,7 +37,7 @@ io.on('connection', (socket) => {
   socket.on('findGame', () => {
     console.log('Player searching for game:', socket.id);
     
-    // Si le joueur était déjà en attente, on le retire
+    // Remove player from waiting list if they were already there
     waitingPlayers.delete(socket.id);
     
     if (waitingPlayers.size > 0) {
@@ -59,6 +65,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('move', ({ gameId, move }) => {
+    console.log('Move received:', { gameId, move });
     const game = games.get(gameId);
     if (game) {
       game.moves.push(move);

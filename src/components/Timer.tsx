@@ -1,15 +1,32 @@
 import React from 'react';
 import { Player } from '../types/game';
+import { User, Bot } from 'lucide-react';
 
 interface TimerProps {
   player: Player;
   time: number;
   isActive: boolean;
+  gameMode: 'self' | 'ai';
+  aiLevel?: 'noob' | 'gaspard' | null;
 }
 
-export const Timer: React.FC<TimerProps> = ({ player, time, isActive }) => {
+export const Timer: React.FC<TimerProps> = ({ 
+  player, 
+  time, 
+  isActive, 
+  gameMode,
+  aiLevel 
+}) => {
   const minutes = Math.floor(time / 60);
   const seconds = time % 60;
+
+  const playerName = player === 'blue' 
+    ? 'Joueur Bleu'
+    : gameMode === 'self' 
+      ? 'Joueur Rouge' 
+      : aiLevel === 'noob' 
+        ? 'Noob'
+        : 'Gaspard';
 
   return (
     <div className={`
@@ -20,13 +37,16 @@ export const Timer: React.FC<TimerProps> = ({ player, time, isActive }) => {
       ${isActive ? 'ring-2 ring-yellow-300 ring-opacity-50' : ''}
       text-white rounded-lg
     `}>
-      <div className="w-16 h-16 bg-white/10 rounded-lg flex items-center justify-center">
-        {/* Placeholder for avatar */}
-        <div className="w-12 h-12 rounded-full bg-white/20" />
+      <div className="w-16 h-16 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+        {(player === 'blue' || gameMode === 'self') ? (
+          <User className="w-10 h-10 text-white/90" />
+        ) : (
+          <Bot className="w-10 h-10 text-white/90" />
+        )}
       </div>
       <div>
         <h3 className="text-lg font-bold mb-1 text-white/90">
-          {player === 'blue' ? 'Joueur Bleu' : 'Joueur Rouge'}
+          {playerName}
         </h3>
         <p className="text-2xl font-mono tracking-wider">
           {minutes.toString().padStart(2, '0')}:

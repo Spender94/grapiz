@@ -14,6 +14,8 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ gameState }) => {
           player="blue"
           time={gameState.blueTime}
           isActive={gameState.currentPlayer === 'blue'}
+          gameMode={gameState.gameMode}
+          aiLevel={gameState.aiLevel}
         />
       </div>
       <div className="w-1/2">
@@ -21,6 +23,8 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ gameState }) => {
           player="red"
           time={gameState.redTime}
           isActive={gameState.currentPlayer === 'red'}
+          gameMode={gameState.gameMode}
+          aiLevel={gameState.aiLevel}
         />
       </div>
     </div>

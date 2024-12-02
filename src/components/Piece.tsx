@@ -24,7 +24,7 @@ export const Piece: React.FC<PieceProps> = ({
   const pieceSize = size * 0.85;
   const padding = 1;
   const innerSize = pieceSize - padding;
-  const domeOffsetY = 3; // Décalage du dôme de 3px vers le bas
+  const domeOffsetY = 3; // Offset for the dome
 
   // Unique IDs for the gradients, masks, and filters
   const baseGradientId = `base-gradient-${player}-${x}-${y}`;
