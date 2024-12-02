@@ -1,6 +1,6 @@
 import React from 'react';
 import { Player } from '../types/game';
-import { User, Bot } from 'lucide-react';
+import { User } from 'lucide-react';
 
 interface TimerProps {
   player: Player;
@@ -28,6 +28,13 @@ export const Timer: React.FC<TimerProps> = ({
         ? 'Noob'
         : 'Gaspard';
 
+  const getAvatarImage = () => {
+    if (aiLevel === 'noob') {
+      return '/avatar_1.png';
+    }
+    return '/gaspard.png';
+  };
+
   return (
     <div className={`
       p-4 h-full flex items-center gap-4
@@ -41,7 +48,11 @@ export const Timer: React.FC<TimerProps> = ({
         {(player === 'blue' || gameMode === 'self') ? (
           <User className="w-10 h-10 text-white/90" />
         ) : (
-          <Bot className="w-10 h-10 text-white/90" />
+          <img 
+            src={getAvatarImage()}
+            alt={aiLevel === 'noob' ? 'Noob' : 'Gaspard'}
+            className="w-full h-full object-cover"
+          />
         )}
       </div>
       <div>
