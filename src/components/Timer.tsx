@@ -6,7 +6,7 @@ interface TimerProps {
   player: Player;
   time: number;
   isActive: boolean;
-  gameMode: 'self' | 'ai';
+  gameMode: 'self' | 'ai' | 'online';
   aiLevel?: 'noob' | 'gaspard' | null;
 }
 
@@ -22,18 +22,13 @@ export const Timer: React.FC<TimerProps> = ({
 
   const playerName = player === 'blue' 
     ? 'Joueur Bleu'
-    : gameMode === 'self' 
-      ? 'Joueur Rouge' 
-      : aiLevel === 'noob' 
-        ? 'Noob'
+    : gameMode === 'online'
+      ? 'Joueur Rouge'
+      : gameMode === 'self'
+        ? 'Joueur Rouge'
         : 'Gaspard';
 
-  const getAvatarImage = () => {
-    if (aiLevel === 'noob') {
-      return '/avatar_1.png';
-    }
-    return '/gaspard.png';
-  };
+  const showAvatar = player === 'red' && gameMode === 'ai' && aiLevel === 'gaspard';
 
   return (
     <div className={`
@@ -45,14 +40,14 @@ export const Timer: React.FC<TimerProps> = ({
       text-white rounded-lg
     `}>
       <div className="w-16 h-16 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
-        {(player === 'blue' || gameMode === 'self') ? (
-          <User className="w-10 h-10 text-white/90" />
-        ) : (
+        {showAvatar ? (
           <img 
-            src={getAvatarImage()}
-            alt={aiLevel === 'noob' ? 'Noob' : 'Gaspard'}
+            src="/gaspard.png"
+            alt="Gaspard"
             className="w-full h-full object-cover"
           />
+        ) : (
+          <User className="w-10 h-10 text-white/90" />
         )}
       </div>
       <div>

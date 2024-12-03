@@ -2,7 +2,7 @@ import { Position } from './position';
 
 export type Player = 'blue' | 'red';
 export type AILevel = 'noob' | 'gaspard' | null;
-export type GameMode = 'self' | 'ai';
+export type GameMode = 'self' | 'ai' | 'online';
 
 export interface Move {
   pieceId: string;
