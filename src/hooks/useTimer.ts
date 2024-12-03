@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Player } from '../types/game';
+import { useState, useEffect, useRef } from 'react';
 
 export function useTimer(
   initialTime: number,
@@ -7,6 +6,13 @@ export function useTimer(
   onTimeEnd: () => void
 ) {
   const [time, setTime] = useState(initialTime);
+  const initialTimeRef = useRef(initialTime);
+
+  // Reset timer when initialTime changes
+  useEffect(() => {
+    setTime(initialTime);
+    initialTimeRef.current = initialTime;
+  }, [initialTime]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

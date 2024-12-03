@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Player, ChatMessage } from '../types/game';
+import { Send } from 'lucide-react';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
@@ -54,14 +55,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           ))}
           <div ref={messagesEndRef} />
         </div>
-        <form onSubmit={handleSubmit} className="mt-auto">
+        <form onSubmit={handleSubmit} className="mt-auto flex gap-2">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Tapez votre message..."
-            className="w-full p-3 rounded-lg bg-[#AC5800] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/30 font-['Verdana'] text-sm"
+            className="flex-1 p-3 rounded-lg bg-[#AC5800] text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/30 font-['Verdana'] text-sm"
           />
+          <button
+            type="submit"
+            className="p-3 rounded-lg bg-[#AC5800] text-white hover:bg-[#8A4600] transition-colors focus:outline-none focus:ring-2 focus:ring-white/30"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </form>
       </div>
     </div>

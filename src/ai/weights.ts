@@ -11,6 +11,6 @@ export const WEIGHTS = {
   FUTURE_CONNECTION: 110,   // Bonus élevé pour créer des opportunités de connexion
   DISTANCE_TO_ENEMY: 70,    // Bonus pour rester proche des pions ennemis
   CENTRAL_CONTROL: 130,     // Bonus pour contrôler la zone centrale
-  WINNING_POSITION: 10000,  // Valeur très élevée pour une position gagnante
-  LOSING_POSITION: -10000   // Valeur très basse pour une position perdante
+  WINNING_POSITION: 100000, // Valeur TRÈS élevée pour une position gagnante
+  LOSING_POSITION: -100000  // Valeur TRÈS basse pour une position perdante
 };

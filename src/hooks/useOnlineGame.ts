@@ -6,29 +6,30 @@ import { generateBoard, arePositionsEqual } from '../utils/boardUtils';
 import { v4 as uuidv4 } from 'uuid';
 
 const SOCKET_URL = 'https://grapiz.onrender.com';
-const INITIAL_TIME = 360;
+const INITIAL_TIME = 360; // 6 minutes in seconds
+
+const createInitialState = (): GameState => ({
+  pieces: getInitialPieces(),
+  currentPlayer: 'blue',
+  selectedPiece: null,
+  validMoves: [],
+  gameStatus: 'waiting',
+  winner: null,
+  blueTime: INITIAL_TIME,
+  redTime: INITIAL_TIME,
+  messages: [],
+  gameId: undefined,
+  playerColor: undefined,
+  gameMode: 'online',
+  aiLevel: null,
+  isThinking: false
+});
 
 export function useOnlineGame() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [gameState, setGameState] = useState<GameState>({
-    pieces: getInitialPieces(),
-    currentPlayer: 'blue',
-    selectedPiece: null,
-    validMoves: [],
-    gameStatus: 'waiting',
-    winner: null,
-    blueTime: INITIAL_TIME,
-    redTime: INITIAL_TIME,
-    messages: [],
-    gameId: undefined,
-    playerColor: undefined,
-    gameMode: 'online',
-    aiLevel: null,
-    isThinking: false
-  });
+  const [gameState, setGameState] = useState<GameState>(createInitialState());
 
-  // Initialiser la connexion socket
   useEffect(() => {
     if (!socket) {
       const newSocket = io(SOCKET_URL, {
@@ -41,12 +42,24 @@ export function useOnlineGame() {
       });
 
       newSocket.on('gameStart', ({ gameId, color }) => {
+        console.log('Game starting, resetting timers');
         setIsSearching(false);
-        setGameState(prev => ({
-          ...prev,
+        setGameState({
+          ...createInitialState(),
           gameId,
           playerColor: color,
-          gameStatus: 'playing'
+          gameStatus: 'playing',
+          gameMode: 'online',
+          blueTime: INITIAL_TIME,
+          redTime: INITIAL_TIME
+        });
+      });
+
+      newSocket.on('timeSync', ({ blueTime, redTime }) => {
+        setGameState(prev => ({
+          ...prev,
+          blueTime: Math.max(0, parseInt(blueTime)),
+          redTime: Math.max(0, parseInt(redTime))
         }));
       });
 
@@ -77,6 +90,13 @@ export function useOnlineGame() {
         }));
       });
 
+      newSocket.on('waiting', () => {
+        setGameState(prev => ({
+          ...createInitialState(),
+          gameMode: 'online'
+        }));
+      });
+
       setSocket(newSocket);
     }
 
@@ -100,6 +120,7 @@ export function useOnlineGame() {
       socket.disconnect();
       setSocket(null);
     }
+    setGameState(createInitialState());
   }, [socket]);
 
   const handlePieceClick = useCallback((pieceId: string) => {
@@ -214,6 +235,28 @@ export function useOnlineGame() {
       }));
     }
   }, [socket, gameState.gameId]);
+
+  // Timer update effect
+  useEffect(() => {
+    if (gameState.gameStatus === 'playing' && socket && gameState.gameId) {
+      const interval = setInterval(() => {
+        if (gameState.currentPlayer === gameState.playerColor) {
+          const timeKey = gameState.playerColor === 'blue' ? 'blueTime' : 'redTime';
+          const currentTime = gameState[timeKey];
+          
+          if (currentTime > 0) {
+            socket.emit('timeUpdate', {
+              gameId: gameState.gameId,
+              player: gameState.playerColor,
+              time: currentTime - 1
+            });
+          }
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [gameState.gameStatus, gameState.currentPlayer, gameState.playerColor, socket, gameState.gameId]);
 
   return {
     gameState,

@@ -11,7 +11,6 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 
-// Serve static files first
 app.use(express.static(join(__dirname, '../dist')));
 
 const io = new Server(httpServer, {
@@ -30,14 +29,16 @@ const io = new Server(httpServer, {
 
 const games = new Map();
 const waitingPlayers = new Set();
+const INITIAL_TIME = 360; // 6 minutes in seconds
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  
+  // Broadcast player count to all clients
+  io.emit('playerCount', io.engine.clientsCount);
 
   socket.on('findGame', () => {
     console.log('Player searching for game:', socket.id);
-    
-    // Remove player from waiting list if they were already there
     waitingPlayers.delete(socket.id);
     
     if (waitingPlayers.size > 0) {
@@ -50,17 +51,49 @@ io.on('connection', (socket) => {
           blue: opponent,
           red: socket.id
         },
-        moves: []
+        moves: [],
+        timers: {
+          blue: INITIAL_TIME,
+          red: INITIAL_TIME
+        },
+        lastUpdate: Date.now()
       });
 
       console.log(`Game ${gameId} created between ${opponent} (blue) and ${socket.id} (red)`);
 
+      // Send initial game state to both players
       io.to(opponent).emit('gameStart', { gameId, color: 'blue' });
-      socket.emit('gameStart', { gameId, color: 'red' });
+      io.to(socket.id).emit('gameStart', { gameId, color: 'red' });
+
+      // Initial timer sync
+      io.to(opponent).emit('timeSync', { 
+        blueTime: INITIAL_TIME, 
+        redTime: INITIAL_TIME 
+      });
+      io.to(socket.id).emit('timeSync', { 
+        blueTime: INITIAL_TIME, 
+        redTime: INITIAL_TIME 
+      });
     } else {
       console.log('Player added to waiting list:', socket.id);
       waitingPlayers.add(socket.id);
       socket.emit('waiting');
+    }
+  });
+
+  socket.on('timeUpdate', ({ gameId, player, time }) => {
+    const game = games.get(gameId);
+    if (game) {
+      game.timers[player] = time;
+      game.lastUpdate = Date.now();
+      
+      // Broadcast time update to both players
+      Object.values(game.players).forEach(playerId => {
+        io.to(playerId).emit('timeSync', {
+          blueTime: game.timers.blue,
+          redTime: game.timers.red
+        });
+      });
     }
   });
 
@@ -110,6 +143,9 @@ io.on('connection', (socket) => {
     console.log('User disconnected:', socket.id);
     waitingPlayers.delete(socket.id);
     
+    // Update connected players count
+    io.emit('playerCount', io.engine.clientsCount - 1);
+    
     for (const [gameId, game] of games.entries()) {
       if (Object.values(game.players).includes(socket.id)) {
         const opponent = Object.values(game.players).find(id => id !== socket.id);
@@ -122,7 +158,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Handle all other routes by serving the index.html
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '../dist/index.html'));
 });

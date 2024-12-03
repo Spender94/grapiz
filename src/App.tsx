@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GameHeader } from './components/GameHeader';
 import { GameBoard } from './components/GameBoard';
 import { ChatArea } from './components/ChatArea';
@@ -54,6 +54,11 @@ function App() {
     }
     setGameMode(mode, aiLevel);
   };
+
+  // Démarrer automatiquement en mode en ligne
+  useEffect(() => {
+    handleGameModeChange('online');
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">

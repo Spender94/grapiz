@@ -2,6 +2,7 @@ import { Piece, Position, Player } from '../types/game';
 import { getNeighbors, arePositionsEqual } from '../utils/boardUtils';
 import { WEIGHTS } from './weights';
 import { evaluateChain, evaluateEnemyChain, isPartOfChain } from './chainEvaluator';
+import { checkVictoryCondition } from '../utils/pieceUtils';
 
 const CENTER = { x: 0, y: 0 };
 
@@ -14,6 +15,18 @@ export function evaluatePosition(position: Position, pieces: Piece[], piece: Pie
   const alliedPieces = pieces.filter(p => p.player === piece.player);
   const enemyPieces = pieces.filter(p => p.player !== piece.player);
   
+  // Vérifier si le coup est gagnant
+  const simulatedPieces = pieces
+    .filter(p => !arePositionsEqual(p.position, position))
+    .map(p => p.id === piece.id ? { ...p, position } : p);
+  
+  const victoryResult = checkVictoryCondition(simulatedPieces);
+  if (victoryResult === piece.player) {
+    return WEIGHTS.WINNING_POSITION;
+  } else if (victoryResult === (piece.player === 'red' ? 'blue' : 'red')) {
+    return WEIGHTS.LOSING_POSITION;
+  }
+
   // Distance au centre
   const distanceFromCenter = calculateDistanceToCenter(position);
   score += (4 - distanceFromCenter) * WEIGHTS.CENTER_POSITION;
